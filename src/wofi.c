@@ -1867,6 +1867,13 @@ static gboolean hide_search_first(gpointer data) {
 static GtkWidget *sync_box;
 static GtkWidget *sync_child;
 
+static const char *query;
+
+static void sync_exec(const char* cmd) {
+
+	printf("[sync_exec] \ncmd=%s\nquery=%s\n", cmd, query);
+}
+
 static void on_search_changed(GtkEntry *entry, gpointer user_data)
 {
 	(void) user_data;
@@ -1890,7 +1897,6 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 		return;
 	}
 
-	const char *query;
 	if (text[0] == '?' && text[1] == '?') {
 		query = (text + 2);
 	} else {
@@ -1901,7 +1907,8 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 
 	if(sync_child == NULL) {
 		printf("[wofi][on_search_changed] CREATING SYNC CHILD\n");
-		sync_box = create_label("sync", (char*)query, (char*)text, "sync_action");
+		// sync_box = create_label("sync", (char*)query, (char*)text, (char*)query);
+		sync_box = create_label("sync", (char*)query, (char*)text, "hello");
 		sync_child = gtk_flow_box_child_new();
 		gtk_widget_set_name(sync_child, "entry");
 		g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
@@ -2189,6 +2196,13 @@ void wofi_init(struct map* _config) {
 		wl_surface_commit(wl_surface);
 		wl_display_roundtrip(wl);
 	}
+
+
+
+	struct mode* sync_mode = calloc(1, sizeof(struct mode));
+	sync_mode->name = strdup("sync");
+	sync_mode->mode_exec = sync_exec;
+	map_put_void(modes, "sync", sync_mode);
 
 	normal_win:
 
