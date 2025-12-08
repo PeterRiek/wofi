@@ -475,6 +475,7 @@ static void setup_label(char* mode, WofiPropertyBox* box) {
 }
 
 static GtkWidget* create_label(char* mode, char* text, char* search_text, char* action) {
+	printf("[wofi][create_label] text=%s; action=%s\n", text, search_text);
 	GtkWidget* box = wofi_property_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 
 	wofi_property_box_add_property(WOFI_PROPERTY_BOX(box), "action", action);
@@ -1088,6 +1089,12 @@ static void flag_box(GtkBox* box, GtkStateFlags flags) {
 }
 
 static void select_item(GtkFlowBox* flow_box, gpointer data) {
+	// TODO: fix segfault here
+	printf("in select item\n");
+	if (flow_box == NULL) {
+		printf("XBHBVUEYXHBCD\n");
+		return;
+	}
 	(void) data;
 	if(previous_selection != NULL) {
 		gtk_widget_set_name(previous_selection, "unselected");
@@ -1866,17 +1873,35 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 	const gchar *text = gtk_entry_get_text(entry);
 	printf("[wofi][on_search_changed] %s\n", text);
 
-	if(text == NULL || strlen(text) == 0) {
+	if(text == NULL || strlen(text) < 2) {
+		if (sync_box == NULL || sync_child == NULL) return;
 		printf("[wofi][on_search_changed] DESTROYING SYNC CHILD\n");
-		gtk_container_remove(GTK_CONTAINER(inner_box), sync_child);
-		sync_box = NULL;
-		sync_child = NULL;
+		GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
+		for(GList* list = children; list != NULL; list = list->next) {
+			if(GTK_IS_LABEL(list->data)) {
+				gtk_label_set_text(GTK_LABEL(list->data), NULL);
+			}
+		}
+		g_list_free(children);
+		wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", NULL);
+		// gtk_container_remove(GTK_CONTAINER(inner_box), sync_child);
+		// sync_box = NULL;
+		// sync_child = NULL;
 		return;
 	}
 
+	const char *query;
+	if (text[0] == '?' && text[1] == '?') {
+		query = (text + 2);
+	} else {
+		return;
+	}
+
+
+
 	if(sync_child == NULL) {
 		printf("[wofi][on_search_changed] CREATING SYNC CHILD\n");
-		sync_box = create_label("sync", (char*)text, (char*)text, "sync_action");
+		sync_box = create_label("sync", (char*)query, (char*)text, "sync_action");
 		sync_child = gtk_flow_box_child_new();
 		gtk_widget_set_name(sync_child, "entry");
 		g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
@@ -1887,9 +1912,11 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 	} else {
 		printf("[wofi][on_search_changed] UPDATING SYNC CHILD\n");
 		GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
+		char label[256];
+		snprintf(label, sizeof(label), "Search: %s", query);
 		for(GList* list = children; list != NULL; list = list->next) {
 			if(GTK_IS_LABEL(list->data)) {
-				gtk_label_set_text(GTK_LABEL(list->data), text);
+				gtk_label_set_text(GTK_LABEL(list->data), label);
 			}
 		}
 		g_list_free(children);
