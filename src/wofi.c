@@ -2209,6 +2209,16 @@ void wofi_init(struct map* _config) {
 
 	pthread_create(&mode_thread, NULL, start_mode_thread, mode);
 
+	// Manual entry
+	GtkWidget* manual_box = create_label("manual", "Manual Entry", "Manual Entry", "manual_action");
+	GtkWidget* manual_child = gtk_flow_box_child_new();
+	gtk_widget_set_name(manual_child, "entry");
+	g_signal_connect(manual_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+	gtk_container_add(GTK_CONTAINER(manual_child), manual_box);
+	gtk_widget_show_all(manual_child);
+	gtk_container_add(GTK_CONTAINER(inner_box), manual_child);
+	++line_count;
+
 	gdk_threads_add_idle(insert_all_widgets, &mode_list);
 
 	gtk_window_set_title(GTK_WINDOW(window), prompt);
