@@ -1835,6 +1835,71 @@ static gboolean hide_search_first(gpointer data) {
 	return G_SOURCE_REMOVE;
 }
 
+/* ====================== */
+// static GtkWidget *sync_box;
+// static GtkWidget *sync_child;
+//
+// static void on_search_changed(GtkEntry *entry, gpointer user_data)
+// {
+// 	(void) user_data;
+// 	const gchar *text = gtk_entry_get_text(entry);
+//
+// 	printf("[wofi][on_search_changed] %s\n", text);
+//
+//
+// 	sync_box = create_label("manual", "sync Entry", "sync Entry", "sync_action");
+// 	sync_child = gtk_flow_box_child_new();
+// 	gtk_widget_set_name(sync_child, "entry");
+// 	g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+// 	gtk_container_add(GTK_CONTAINER(sync_child), sync_box);
+// 	gtk_widget_show_all(sync_child);
+// 	gtk_container_add(GTK_CONTAINER(inner_box), sync_child);
+// 	++line_count;
+// }
+/* ====================== */
+static GtkWidget *sync_box;
+static GtkWidget *sync_child;
+
+static void on_search_changed(GtkEntry *entry, gpointer user_data)
+{
+	(void) user_data;
+	const gchar *text = gtk_entry_get_text(entry);
+	printf("[wofi][on_search_changed] %s\n", text);
+
+	if(text == NULL || strlen(text) == 0) {
+		printf("[wofi][on_search_changed] DESTROYING SYNC CHILD\n");
+		gtk_container_remove(GTK_CONTAINER(inner_box), sync_child);
+		sync_box = NULL;
+		sync_child = NULL;
+		return;
+	}
+
+	if(sync_child == NULL) {
+		printf("[wofi][on_search_changed] CREATING SYNC CHILD\n");
+		sync_box = create_label("sync", (char*)text, (char*)text, "sync_action");
+		sync_child = gtk_flow_box_child_new();
+		gtk_widget_set_name(sync_child, "entry");
+		g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+		gtk_container_add(GTK_CONTAINER(sync_child), sync_box);
+		gtk_widget_show_all(sync_child);
+		gtk_container_add(GTK_CONTAINER(inner_box), sync_child);
+		++line_count;
+	} else {
+		printf("[wofi][on_search_changed] UPDATING SYNC CHILD\n");
+		GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
+		for(GList* list = children; list != NULL; list = list->next) {
+			if(GTK_IS_LABEL(list->data)) {
+				gtk_label_set_text(GTK_LABEL(list->data), text);
+			}
+		}
+		g_list_free(children);
+		wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", (char*) text);
+	}
+}
+/* ====================== */
+
+
+
 void wofi_init(struct map* _config) {
 	config = _config;
 	char* width_str = config_get(config, "width", "50%");
@@ -2189,6 +2254,9 @@ void wofi_init(struct map* _config) {
 	g_signal_connect(entry, "focus-out-event", G_CALLBACK(focus_entry), NULL);
 	g_signal_connect(window, "destroy", G_CALLBACK(do_exit), NULL);
 
+	// Sync entry
+	g_signal_connect(entry, "changed", G_CALLBACK(on_search_changed), NULL);
+
 	dbus = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, "sm.puri.OSK0", "/sm/puri/OSK0", "sm.puri.OSK0", NULL, NULL);
 
 	gdk_threads_add_timeout(filter_rate, do_search, NULL);
@@ -2210,14 +2278,16 @@ void wofi_init(struct map* _config) {
 	pthread_create(&mode_thread, NULL, start_mode_thread, mode);
 
 	// Manual entry
-	GtkWidget* manual_box = create_label("manual", "Manual Entry", "Manual Entry", "manual_action");
-	GtkWidget* manual_child = gtk_flow_box_child_new();
-	gtk_widget_set_name(manual_child, "entry");
-	g_signal_connect(manual_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
-	gtk_container_add(GTK_CONTAINER(manual_child), manual_box);
-	gtk_widget_show_all(manual_child);
-	gtk_container_add(GTK_CONTAINER(inner_box), manual_child);
-	++line_count;
+	// GtkWidget* manual_box = create_label("manual", "Manual Entry", "Manual Entry", "manual_action");
+	// GtkWidget* manual_child = gtk_flow_box_child_new();
+	// gtk_widget_set_name(manual_child, "entry");
+	// g_signal_connect(manual_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+	// gtk_container_add(GTK_CONTAINER(manual_child), manual_box);
+	// gtk_widget_show_all(manual_child);
+	// gtk_container_add(GTK_CONTAINER(inner_box), manual_child);
+	// ++line_count;
+
+
 
 	gdk_threads_add_idle(insert_all_widgets, &mode_list);
 
