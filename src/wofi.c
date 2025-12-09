@@ -15,6 +15,7 @@
     along with Wofi.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdlib.h>
 #include <wofi.h>
 
 #include <ctype.h>
@@ -1870,8 +1871,12 @@ static GtkWidget *sync_child;
 static const char *query;
 
 static void sync_exec(const char* cmd) {
-
-	printf("[sync_exec] \ncmd=%s\nquery=%s\n", cmd, query);
+	char *path = "~/Projects/wofi/search.sh";
+	char execute[256];
+	snprintf(execute, sizeof(execute), "%s %s", path, query);
+	printf("[sync_exec] \ncmd=%s\nquery=%s\nexecute=%s\n", cmd, query, execute);
+	system(execute);
+	wofi_exit(0);
 }
 
 static void on_search_changed(GtkEntry *entry, gpointer user_data)
@@ -1891,9 +1896,6 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 		}
 		g_list_free(children);
 		wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", NULL);
-		// gtk_container_remove(GTK_CONTAINER(inner_box), sync_child);
-		// sync_box = NULL;
-		// sync_child = NULL;
 		return;
 	}
 
@@ -1907,8 +1909,9 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 
 	if(sync_child == NULL) {
 		printf("[wofi][on_search_changed] CREATING SYNC CHILD\n");
-		// sync_box = create_label("sync", (char*)query, (char*)text, (char*)query);
-		sync_box = create_label("sync", (char*)query, (char*)text, "hello");
+		// NOTE: no action specified as dynamic content is part of action (=NULL)
+		// 		 further down could specify actions for mapping different customs
+		sync_box = create_label("sync", (char*)query, (char*)text, NULL);
 		sync_child = gtk_flow_box_child_new();
 		gtk_widget_set_name(sync_child, "entry");
 		g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
@@ -1916,19 +1919,18 @@ static void on_search_changed(GtkEntry *entry, gpointer user_data)
 		gtk_widget_show_all(sync_child);
 		gtk_container_add(GTK_CONTAINER(inner_box), sync_child);
 		++line_count;
-	} else {
-		printf("[wofi][on_search_changed] UPDATING SYNC CHILD\n");
-		GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
-		char label[256];
-		snprintf(label, sizeof(label), "Search: %s", query);
-		for(GList* list = children; list != NULL; list = list->next) {
-			if(GTK_IS_LABEL(list->data)) {
-				gtk_label_set_text(GTK_LABEL(list->data), label);
-			}
-		}
-		g_list_free(children);
-		wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", (char*) text);
 	}
+	printf("[wofi][on_search_changed] UPDATING SYNC CHILD\n");
+	GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
+	char label[256];
+	snprintf(label, sizeof(label), "Search: %s", query);
+	for(GList* list = children; list != NULL; list = list->next) {
+		if(GTK_IS_LABEL(list->data)) {
+			gtk_label_set_text(GTK_LABEL(list->data), label);
+		}
+	}
+	g_list_free(children);
+	wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", (char*) text);
 }
 /* ====================== */
 
@@ -2199,6 +2201,7 @@ void wofi_init(struct map* _config) {
 
 
 
+	/* TODO: implement modularity */
 	struct mode* sync_mode = calloc(1, sizeof(struct mode));
 	sync_mode->name = strdup("sync");
 	sync_mode->mode_exec = sync_exec;
