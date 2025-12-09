@@ -1844,96 +1844,72 @@ static gboolean hide_search_first(gpointer data) {
 }
 
 /* ====================== */
-// static GtkWidget *sync_box;
-// static GtkWidget *sync_child;
-//
-// static void on_search_changed(GtkEntry *entry, gpointer user_data)
-// {
-// 	(void) user_data;
-// 	const gchar *text = gtk_entry_get_text(entry);
-//
-// 	printf("[wofi][on_search_changed] %s\n", text);
-//
-//
-// 	sync_box = create_label("manual", "sync Entry", "sync Entry", "sync_action");
-// 	sync_child = gtk_flow_box_child_new();
-// 	gtk_widget_set_name(sync_child, "entry");
-// 	g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
-// 	gtk_container_add(GTK_CONTAINER(sync_child), sync_box);
-// 	gtk_widget_show_all(sync_child);
-// 	gtk_container_add(GTK_CONTAINER(inner_box), sync_child);
-// 	++line_count;
-// }
-/* ====================== */
-static GtkWidget *sync_box;
-static GtkWidget *sync_child;
+
+static GtkWidget *prefix_widget_box;
+static GtkWidget *prefix_widget_child;
 
 static const char *query;
 
-static void sync_exec(const char* cmd) {
+static void prefix_widget_run(const char* cmd) {
 	char *path = "~/Projects/wofi/search.sh";
 	char execute[256];
 	snprintf(execute, sizeof(execute), "%s %s", path, query);
-	printf("[sync_exec] \ncmd=%s\nquery=%s\nexecute=%s\n", cmd, query, execute);
 	system(execute);
 	wofi_exit(0);
 }
 
-static void on_search_changed(GtkEntry *entry, gpointer user_data)
+static void prefix_widget_create(const char *search_text)
 {
-	(void) user_data;
-	const gchar *text = gtk_entry_get_text(entry);
-	printf("[wofi][on_search_changed] %s\n", text);
+	// NOTE: no action specified as dynamic content is part of action (=NULL)
+	// 		 further down could specify actions for mapping different customs
+	prefix_widget_box = create_label("prefix", "", (char*)search_text, NULL);
+	prefix_widget_child = gtk_flow_box_child_new();
+	gtk_widget_set_name(prefix_widget_child, "entry");
+	g_signal_connect(prefix_widget_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+	gtk_container_add(GTK_CONTAINER(prefix_widget_child), prefix_widget_box);
+	gtk_widget_show_all(prefix_widget_child);
+	gtk_container_add(GTK_CONTAINER(inner_box), prefix_widget_child);
+	++line_count;
 
-	if(text == NULL || strlen(text) < 2) {
-		if (sync_box == NULL || sync_child == NULL) return;
-		printf("[wofi][on_search_changed] DESTROYING SYNC CHILD\n");
-		GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
-		for(GList* list = children; list != NULL; list = list->next) {
-			if(GTK_IS_LABEL(list->data)) {
-				gtk_label_set_text(GTK_LABEL(list->data), NULL);
-			}
-		}
-		g_list_free(children);
-		wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", NULL);
-		return;
-	}
+}
 
-	if (text[0] == '?' && text[1] == '?') {
-		query = (text + 2);
-	} else {
-		return;
-	}
-
-
-
-	if(sync_child == NULL) {
-		printf("[wofi][on_search_changed] CREATING SYNC CHILD\n");
-		// NOTE: no action specified as dynamic content is part of action (=NULL)
-		// 		 further down could specify actions for mapping different customs
-		sync_box = create_label("sync", (char*)query, (char*)text, NULL);
-		sync_child = gtk_flow_box_child_new();
-		gtk_widget_set_name(sync_child, "entry");
-		g_signal_connect(sync_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
-		gtk_container_add(GTK_CONTAINER(sync_child), sync_box);
-		gtk_widget_show_all(sync_child);
-		gtk_container_add(GTK_CONTAINER(inner_box), sync_child);
-		++line_count;
-	}
-	printf("[wofi][on_search_changed] UPDATING SYNC CHILD\n");
-	GList* children = gtk_container_get_children(GTK_CONTAINER(sync_box));
-	char label[256];
-	snprintf(label, sizeof(label), "Search: %s", query);
+static void prefix_widget_update(const char *label, const char *search_text)
+{
+	if (prefix_widget_box == NULL || prefix_widget_child == NULL) return;
+	GList* children = gtk_container_get_children(GTK_CONTAINER(prefix_widget_box));
 	for(GList* list = children; list != NULL; list = list->next) {
 		if(GTK_IS_LABEL(list->data)) {
 			gtk_label_set_text(GTK_LABEL(list->data), label);
 		}
 	}
 	g_list_free(children);
-	wofi_property_box_add_property(WOFI_PROPERTY_BOX(sync_box), "filter", (char*) text);
+	wofi_property_box_add_property(WOFI_PROPERTY_BOX(prefix_widget_box), "filter", (char *)search_text);
 }
-/* ====================== */
 
+static void on_search_changed(GtkEntry *entry, gpointer user_data)
+{
+	// TODO: modularity
+	(void) user_data;
+	const gchar *text = gtk_entry_get_text(entry);
+
+	if(text == NULL || strlen(text) < 2) {
+		prefix_widget_update(NULL, NULL);
+		return;
+	}
+
+	if (text[0] == '?' && text[1] == '?') {
+		query = (text + 2);
+	} else return;
+
+	if(prefix_widget_child == NULL)
+		prefix_widget_create(text);
+
+	char label[256];
+	snprintf(label, sizeof(label), "Search: %s", query);
+	prefix_widget_update(label, text);
+}
+
+/* ====================== */
 
 
 void wofi_init(struct map* _config) {
@@ -2199,13 +2175,11 @@ void wofi_init(struct map* _config) {
 		wl_display_roundtrip(wl);
 	}
 
-
-
 	/* TODO: implement modularity */
-	struct mode* sync_mode = calloc(1, sizeof(struct mode));
-	sync_mode->name = strdup("sync");
-	sync_mode->mode_exec = sync_exec;
-	map_put_void(modes, "sync", sync_mode);
+	struct mode* prefix_mode = calloc(1, sizeof(struct mode));
+	prefix_mode->name = strdup("prefix");
+	prefix_mode->mode_exec = prefix_widget_run;
+	map_put_void(modes, "prefix", prefix_mode);
 
 	normal_win:
 
@@ -2320,18 +2294,6 @@ void wofi_init(struct map* _config) {
 	wl_list_init(&mode_list);
 
 	pthread_create(&mode_thread, NULL, start_mode_thread, mode);
-
-	// Manual entry
-	// GtkWidget* manual_box = create_label("manual", "Manual Entry", "Manual Entry", "manual_action");
-	// GtkWidget* manual_child = gtk_flow_box_child_new();
-	// gtk_widget_set_name(manual_child, "entry");
-	// g_signal_connect(manual_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
-	// gtk_container_add(GTK_CONTAINER(manual_child), manual_box);
-	// gtk_widget_show_all(manual_child);
-	// gtk_container_add(GTK_CONTAINER(inner_box), manual_child);
-	// ++line_count;
-
-
 
 	gdk_threads_add_idle(insert_all_widgets, &mode_list);
 
