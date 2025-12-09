@@ -1853,7 +1853,7 @@ static const char *query;
 static void prefix_widget_run(const char* cmd) {
 	char *path = "~/Projects/wofi/search.sh";
 	char execute[256];
-	snprintf(execute, sizeof(execute), "%s %s", path, query);
+	snprintf(execute, sizeof(execute), "%s \"%s\"", path, query);
 	system(execute);
 	wofi_exit(0);
 }
