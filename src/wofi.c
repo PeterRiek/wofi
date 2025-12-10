@@ -1848,13 +1848,44 @@ static gboolean hide_search_first(gpointer data) {
 static GtkWidget *prefix_widget_box;
 static GtkWidget *prefix_widget_child;
 
-static const char *query;
+static const char *prefix_widget_text;
 
-static void prefix_widget_run(const char* cmd) {
+char* prefix_compute_on_change(const char *text)
+{
+    if (!text || text[0] != '?' || text[1] != '?')
+        return strdup("");
+
+    const char *query = text + 2;
+    char label[256];
+
+    snprintf(label, sizeof(label), "Search: %s", query);
+
+    char *ret = malloc(strlen(label) + 1);
+    if (!ret) return NULL;
+
+    strcpy(ret, label);
+    return ret;
+}
+
+static void prefix_compute_on_run(const char *text)
+{
+	const char *query;
+	if (text[0] == '?' && text[1] == '?') {
+		query = (text + 2);
+	} else return;
 	char *path = "~/Projects/wofi/search.sh";
 	char execute[256];
 	snprintf(execute, sizeof(execute), "%s \"%s\"", path, query);
 	system(execute);
+}
+
+static void prefix_widget_on_run(const char* cmd)
+{
+	// TODO: exiting not working correctly
+	if (fork() == 0) {
+		prefix_compute_on_run(prefix_widget_text);
+		wofi_exit(0);
+	}
 	wofi_exit(0);
 }
 
@@ -1870,7 +1901,6 @@ static void prefix_widget_create(const char *search_text)
 	gtk_widget_show_all(prefix_widget_child);
 	gtk_container_add(GTK_CONTAINER(inner_box), prefix_widget_child);
 	++line_count;
-
 }
 
 static void prefix_widget_update(const char *label, const char *search_text)
@@ -1886,26 +1916,22 @@ static void prefix_widget_update(const char *label, const char *search_text)
 	wofi_property_box_add_property(WOFI_PROPERTY_BOX(prefix_widget_box), "filter", (char *)search_text);
 }
 
-static void on_search_changed(GtkEntry *entry, gpointer user_data)
+static void prefix_widget_on_changed(GtkEntry *entry, gpointer user_data)
 {
 	// TODO: modularity
 	(void) user_data;
 	const gchar *text = gtk_entry_get_text(entry);
+	prefix_widget_text = (char*)text;
 
 	if(text == NULL || strlen(text) < 2) {
 		prefix_widget_update(NULL, NULL);
 		return;
 	}
 
-	if (text[0] == '?' && text[1] == '?') {
-		query = (text + 2);
-	} else return;
-
 	if(prefix_widget_child == NULL)
 		prefix_widget_create(text);
 
-	char label[256];
-	snprintf(label, sizeof(label), "Search: %s", query);
+	char *label = prefix_compute_on_change(text);
 	prefix_widget_update(label, text);
 }
 
@@ -2178,7 +2204,7 @@ void wofi_init(struct map* _config) {
 	/* TODO: implement modularity */
 	struct mode* prefix_mode = calloc(1, sizeof(struct mode));
 	prefix_mode->name = strdup("prefix");
-	prefix_mode->mode_exec = prefix_widget_run;
+	prefix_mode->mode_exec = prefix_widget_on_run;
 	map_put_void(modes, "prefix", prefix_mode);
 
 	normal_win:
@@ -2273,7 +2299,7 @@ void wofi_init(struct map* _config) {
 	g_signal_connect(window, "destroy", G_CALLBACK(do_exit), NULL);
 
 	// Sync entry
-	g_signal_connect(entry, "changed", G_CALLBACK(on_search_changed), NULL);
+	g_signal_connect(entry, "changed", G_CALLBACK(prefix_widget_on_changed), NULL);
 
 	dbus = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, "sm.puri.OSK0", "/sm/puri/OSK0", "sm.puri.OSK0", NULL, NULL);
 
