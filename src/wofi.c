@@ -15,7 +15,9 @@
     along with Wofi.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 #include <wofi.h>
 
 #include <ctype.h>
@@ -1867,25 +1869,35 @@ char* prefix_compute_on_change(const char *text)
     return ret;
 }
 
-static void prefix_compute_on_run(const char *text)
+static int prefix_compute_on_run(const char *text)
 {
-	const char *query;
-	if (text[0] == '?' && text[1] == '?') {
-		query = (text + 2);
-	} else return;
-	char *path = "~/Projects/wofi/search.sh";
-	char execute[256];
-	snprintf(execute, sizeof(execute), "%s \"%s\"", path, query);
-	system(execute);
+    if (text[0] != '?' || text[1] != '?')
+        return -1;
+
+    const char *query = text + 2;
+
+    // Expand tilde manually or use fixed absolute path
+    const char *path = "/home/peter/Projects/wofi/search.sh";
+
+    execl(path, path, query, NULL);
+
+    perror("exec failed");
+    return -1;  // only reached if exec fails
 }
 
 static void prefix_widget_on_run(const char* cmd)
 {
 	// TODO: exiting not working correctly
-	if (fork() == 0) {
+	pid_t pid = fork();
+	if (pid == 0) {
 		prefix_compute_on_run(prefix_widget_text);
-		wofi_exit(0);
+		fprintf(stderr, "After compute run from child %d\n", pid);
+		_exit(0);
 	}
+	fprintf(stderr, "Waiting for exit from %d\n", pid);
+	// int status;
+	// waitpid(pid, &status, 0);
+	fprintf(stderr, "Exiting from %d\n", pid);
 	wofi_exit(0);
 }
 
