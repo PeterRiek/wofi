@@ -1873,16 +1873,10 @@ static int prefix_compute_on_run(const char *text)
 {
     if (text[0] != '?' || text[1] != '?')
         return -1;
-
     const char *query = text + 2;
-
-    // Expand tilde manually or use fixed absolute path
     const char *path = "/home/peter/Projects/wofi/search.sh";
-
     execl(path, path, query, NULL);
-
-    perror("exec failed");
-    return -1;  // only reached if exec fails
+    return -1;
 }
 
 static void prefix_widget_on_run(const char* cmd)
@@ -1891,13 +1885,8 @@ static void prefix_widget_on_run(const char* cmd)
 	pid_t pid = fork();
 	if (pid == 0) {
 		prefix_compute_on_run(prefix_widget_text);
-		fprintf(stderr, "After compute run from child %d\n", pid);
 		_exit(0);
 	}
-	fprintf(stderr, "Waiting for exit from %d\n", pid);
-	// int status;
-	// waitpid(pid, &status, 0);
-	fprintf(stderr, "Exiting from %d\n", pid);
 	wofi_exit(0);
 }
 
