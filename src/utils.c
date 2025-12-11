@@ -27,6 +27,7 @@
 
 #include <sys/stat.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 
 time_t utils_get_time_millis(void) {
 	struct timeval time;
@@ -116,4 +117,77 @@ void utils_mkdir(char* path, mode_t mode) {
 		mkdir(path, mode);
 		free(tmp);
 	}
+}
+
+int utils_run_command(const char *cmd, char *const params[], char **output)
+{
+    int pipefd[2];
+    pid_t pid;
+    int status;
+
+    *output = NULL;
+
+    if (pipe(pipefd) == -1)
+        return -1;
+
+    pid = fork();
+    if (pid < 0) {
+        close(pipefd[0]);
+        close(pipefd[1]);
+        return -1;
+    }
+
+    if (pid == 0) {
+        // Child: redirect stdout -> pipe
+        close(pipefd[0]);
+        dup2(pipefd[1], STDOUT_FILENO);
+        close(pipefd[1]);
+
+        execvp(cmd, params);   // PATH lookup + params
+        _exit(127);            // exec failed
+    }
+
+    // Parent: read output
+    close(pipefd[1]);
+
+    size_t size = 0;
+    size_t used = 0;
+    char *buf = NULL;
+
+    char tmp[256];
+    ssize_t n;
+
+    while ((n = read(pipefd[0], tmp, sizeof(tmp))) > 0) {
+        if (used + n + 1 > size) {
+            size_t new_size = size == 0 ? 512 : size * 2;
+            if (new_size < used + n + 1)
+                new_size = used + n + 1;
+
+            char *new_buf = realloc(buf, new_size);
+            if (!new_buf) {
+                free(buf);
+                close(pipefd[0]);
+                waitpid(pid, NULL, 0);
+                return -1;
+            }
+            buf = new_buf;
+            size = new_size;
+        }
+        memcpy(buf + used, tmp, n);
+        used += n;
+    }
+
+    close(pipefd[0]);
+
+    if (buf)
+        buf[used] = '\0';
+
+    *output = buf;
+
+    waitpid(pid, &status, 0);
+
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+
+    return -1;
 }

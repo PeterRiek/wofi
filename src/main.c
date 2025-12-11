@@ -98,6 +98,8 @@ static void print_usage(char** argv) {
 	printf(PRINT_USAGE_FORMAT,   "-Q",   ',',   "--search",              "\t\t\t",   "Search for something immediately on open");
 	printf(PRINT_USAGE_FORMAT,   "-o",   ',',   "--monitor",             "\t\t",     "Sets the monitor to open on");
 	printf(PRINT_USAGE_FORMAT,   "-r",   ',',   "--pre-display-cmd",     "\t",       "Runs command for the displayed entries, without changing the output. %%s for the real string");
+	printf(PRINT_USAGE_FORMAT,   "-R",   ',',   "--external-run-label",  "\t",       "Set path to executable returning label when search input changes (Requires -X)");
+	printf(PRINT_USAGE_FORMAT,   "-X",   ',',   "--external-run-exec",   "\t",       "Set path to executable run when excecuting external entry (Requires -R)");
 	printf(PRINT_USAGE_FORMAT,   "  ",   ' ',   "--render-only-image",   "\t",       "Remove label of dmenu image");
 	printf(PRINT_USAGE_FORMAT,   "  ",   ' ',   "--bottom-search",       "\t",       "Move input entry under scroll");
 	exit(0);
@@ -278,7 +280,9 @@ int main(int argc, char** argv) {
 		{ .name = "search",              .has_arg = required_argument,   .flag = NULL,   .val = 'Q' },
 		{ .name = "monitor",             .has_arg = required_argument,   .flag = NULL,   .val = 'o' },
 		{ .name = "pre-display-cmd",     .has_arg = required_argument,   .flag = NULL,   .val = 'r' },
-		{ .name = NULL,                  .has_arg = 0,                   .flag = NULL, 	.val =  0  }
+		{ .name = "external-run-label",	 .has_arg = required_argument,   .flag = NULL,   .val = 'R' },
+		{ .name = "external-run-exec",	 .has_arg = required_argument,   .flag = NULL,   .val = 'X' },
+		{ .name = NULL,                  .has_arg = 0,                   .flag = NULL,	 .val =  0  }
 	};
 
 	const char* config_str = NULL;
@@ -312,13 +316,15 @@ int main(int argc, char** argv) {
 	      char* search = NULL;
 	      char* monitor = NULL;
 	      char* pre_display_cmd = NULL;
+		  char* external_run_label = NULL;
+		  char* external_run_exec = NULL;
 
 	struct wl_list options;
 	wl_list_init(&options);
 	struct option_node* node;
 
 	int opt = 0, opt_index = 0;
-	while((opt = getopt_long(argc, argv, "hfc:s:C:dS:W:H:p:x:y:nImk:t:P::ebM:iqvl:aD:L:w:O:GQ:o:r:01:", opts, &opt_index)) != -1)
+	while((opt = getopt_long(argc, argv, "hfc:s:C:dS:W:H:p:x:y:nImk:t:P::ebM:iqvl:aD:L:w:O:GQ:o:r:R:X:01:", opts, &opt_index)) != -1)
 	{
 		switch(opt)
 		{
@@ -371,13 +377,15 @@ int main(int argc, char** argv) {
 				node->option = optarg;
 				wl_list_insert(&options, &node->link);
 			} break;
-			case 'L': lines = optarg;            break;
-			case 'w': columns = optarg;          break;
-			case 'O': sort_order = optarg;       break;
-			case 'G': gtk_dark = "true";         break;
-			case 'Q': search = optarg;           break;
-			case 'o': monitor = optarg;          break;
-			case 'r': pre_display_cmd = optarg;  break;
+			case 'L': lines = optarg;            	break;
+			case 'w': columns = optarg;          	break;
+			case 'O': sort_order = optarg;       	break;
+			case 'G': gtk_dark = "true";         	break;
+			case 'Q': search = optarg;           	break;
+			case 'o': monitor = optarg;          	break;
+			case 'r': pre_display_cmd = optarg;  	break;
+			case 'R': external_run_label = optarg; 	break;
+			case 'X': external_run_exec = optarg;  	break;
 			default: fprintf(stderr, "More information: -h.\n"); exit(1);
 		}
 	}
@@ -574,6 +582,12 @@ int main(int argc, char** argv) {
 	}
 	if(pre_display_cmd != NULL) {
 		map_put(config, "pre_display_cmd", pre_display_cmd);
+	}
+	if(external_run_label != NULL) {
+		map_put(config, "external_run_label", external_run_label);
+	}
+	if(external_run_exec != NULL) {
+		map_put(config, "external_run_exec", external_run_label);
 	}
 
 	struct sigaction sigact = {0};

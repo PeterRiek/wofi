@@ -36,4 +36,6 @@ size_t utils_distance(const char* haystack, const char* needle);
 
 void utils_mkdir(char *path, mode_t mode);
 
+int utils_run_command(const char *cmd, char *const params[], char **output);
+
 #endif

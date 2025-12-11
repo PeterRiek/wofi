@@ -15,6 +15,7 @@
     along with Wofi.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "map.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -478,7 +479,6 @@ static void setup_label(char* mode, WofiPropertyBox* box) {
 }
 
 static GtkWidget* create_label(char* mode, char* text, char* search_text, char* action) {
-	printf("[wofi][create_label] text=%s; action=%s\n", text, search_text);
 	GtkWidget* box = wofi_property_box_new(GTK_ORIENTATION_HORIZONTAL, 0);
 
 	wofi_property_box_add_property(WOFI_PROPERTY_BOX(box), "action", action);
@@ -1092,12 +1092,6 @@ static void flag_box(GtkBox* box, GtkStateFlags flags) {
 }
 
 static void select_item(GtkFlowBox* flow_box, gpointer data) {
-	// TODO: fix segfault here
-	printf("in select item\n");
-	if (flow_box == NULL) {
-		printf("XBHBVUEYXHBCD\n");
-		return;
-	}
 	(void) data;
 	if(previous_selection != NULL) {
 		gtk_widget_set_name(previous_selection, "unselected");
@@ -1847,93 +1841,86 @@ static gboolean hide_search_first(gpointer data) {
 
 /* ====================== */
 
-static GtkWidget *prefix_widget_box;
-static GtkWidget *prefix_widget_child;
+static GtkWidget *extrun_widget_box;
+static GtkWidget *extrun_widget_child;
 
-static const char *prefix_widget_text;
+static const char *extrun_widget_text;
 
-char* prefix_compute_on_change(const char *text)
+char* extrun_compute_on_change(const char *text)
 {
-    if (!text || text[0] != '?' || text[1] != '?')
-        return strdup("");
-
-    const char *query = text + 2;
-    char label[256];
-
-    snprintf(label, sizeof(label), "Search: %s", query);
-
-    char *ret = malloc(strlen(label) + 1);
-    if (!ret) return NULL;
-
-    strcpy(ret, label);
-    return ret;
+    const char *path = (char *)map_get(config, "external_run_label");
+	char *args[] = {
+		(char *)path,
+		(char *)text,
+		NULL
+	};
+	char *output;
+	if (utils_run_command(path, args, &output) == 0)
+		return output;
+	else
+		return NULL;
 }
 
-static int prefix_compute_on_run(const char *text)
+static int extrun_compute_on_run(const char *text)
 {
-    if (text[0] != '?' || text[1] != '?')
-        return -1;
-    const char *query = text + 2;
-    const char *path = "/home/peter/Projects/wofi/search.sh";
-    execl(path, path, query, NULL);
+	const char *path = (char *)map_get(config, "external_run_exec");
+    execl(path, path, text, NULL);
     return -1;
 }
 
-static void prefix_widget_on_run(const char* cmd)
+static void extrun_widget_on_run(const char* cmd)
 {
-	// TODO: exiting not working correctly
 	pid_t pid = fork();
 	if (pid == 0) {
-		prefix_compute_on_run(prefix_widget_text);
+		extrun_compute_on_run(extrun_widget_text);
 		_exit(0);
 	}
 	wofi_exit(0);
 }
 
-static void prefix_widget_create(const char *search_text)
+static void extrun_widget_create(const char *search_text)
 {
 	// NOTE: no action specified as dynamic content is part of action (=NULL)
-	// 		 further down could specify actions for mapping different customs
-	prefix_widget_box = create_label("prefix", "", (char*)search_text, NULL);
-	prefix_widget_child = gtk_flow_box_child_new();
-	gtk_widget_set_name(prefix_widget_child, "entry");
-	g_signal_connect(prefix_widget_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
-	gtk_container_add(GTK_CONTAINER(prefix_widget_child), prefix_widget_box);
-	gtk_widget_show_all(prefix_widget_child);
-	gtk_container_add(GTK_CONTAINER(inner_box), prefix_widget_child);
+	extrun_widget_box = create_label("extrun", "", (char*)search_text, NULL);
+	extrun_widget_child = gtk_flow_box_child_new();
+	gtk_widget_set_name(extrun_widget_child, "entry");
+	g_signal_connect(extrun_widget_child, "size-allocate", G_CALLBACK(widget_allocate), NULL);
+	gtk_container_add(GTK_CONTAINER(extrun_widget_child), extrun_widget_box);
+	gtk_widget_show_all(extrun_widget_child);
+	gtk_container_add(GTK_CONTAINER(inner_box), extrun_widget_child);
 	++line_count;
 }
 
-static void prefix_widget_update(const char *label, const char *search_text)
+static void extrun_widget_update(const char *label, const char *search_text)
 {
-	if (prefix_widget_box == NULL || prefix_widget_child == NULL) return;
-	GList* children = gtk_container_get_children(GTK_CONTAINER(prefix_widget_box));
+	if (extrun_widget_box == NULL || extrun_widget_child == NULL) return;
+	GList* children = gtk_container_get_children(GTK_CONTAINER(extrun_widget_box));
 	for(GList* list = children; list != NULL; list = list->next) {
 		if(GTK_IS_LABEL(list->data)) {
 			gtk_label_set_text(GTK_LABEL(list->data), label);
 		}
 	}
 	g_list_free(children);
-	wofi_property_box_add_property(WOFI_PROPERTY_BOX(prefix_widget_box), "filter", (char *)search_text);
+	if (search_text && strlen(search_text) > 0)
+		wofi_property_box_add_property(WOFI_PROPERTY_BOX(extrun_widget_box), "filter", (char *)search_text);
 }
 
-static void prefix_widget_on_changed(GtkEntry *entry, gpointer user_data)
+static void extrun_widget_on_changed(GtkEntry *entry, gpointer user_data)
 {
-	// TODO: modularity
 	(void) user_data;
 	const gchar *text = gtk_entry_get_text(entry);
-	prefix_widget_text = (char*)text;
+	extrun_widget_text = (char*)text;
 
 	if(text == NULL || strlen(text) < 2) {
-		prefix_widget_update(NULL, NULL);
+		extrun_widget_update(NULL, NULL);
 		return;
 	}
 
-	if(prefix_widget_child == NULL)
-		prefix_widget_create(text);
+	if(extrun_widget_child == NULL)
+		extrun_widget_create(text);
 
-	char *label = prefix_compute_on_change(text);
-	prefix_widget_update(label, text);
+	char *label = extrun_compute_on_change(text);
+	extrun_widget_update(label, text);
 }
 
 /* ====================== */
@@ -2202,11 +2189,14 @@ void wofi_init(struct map* _config) {
 		wl_display_roundtrip(wl);
 	}
 
-	/* TODO: implement modularity */
-	struct mode* prefix_mode = calloc(1, sizeof(struct mode));
-	prefix_mode->name = strdup("prefix");
-	prefix_mode->mode_exec = prefix_widget_on_run;
-	map_put_void(modes, "prefix", prefix_mode);
+	bool external_run_enabled = map_contains(config, "external_run_label") && map_contains(config, "external_run_exec");
+	// Hook ext run on exec func
+	if (external_run_enabled) {
+		struct mode* extrun_mode = calloc(1, sizeof(struct mode));
+		extrun_mode->name = strdup("extrun");
+		extrun_mode->mode_exec = extrun_widget_on_run;
+		map_put_void(modes, "extrun", extrun_mode);
+	}
 
 	normal_win:
 
@@ -2299,8 +2289,10 @@ void wofi_init(struct map* _config) {
 	g_signal_connect(entry, "focus-out-event", G_CALLBACK(focus_entry), NULL);
 	g_signal_connect(window, "destroy", G_CALLBACK(do_exit), NULL);
 
-	// Sync entry
-	g_signal_connect(entry, "changed", G_CALLBACK(prefix_widget_on_changed), NULL);
+	// Hook external run func
+	if (external_run_enabled) {
+		g_signal_connect(entry, "changed", G_CALLBACK(extrun_widget_on_changed), NULL);
+	}
 
 	dbus = g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, "sm.puri.OSK0", "/sm/puri/OSK0", "sm.puri.OSK0", NULL, NULL);
 
