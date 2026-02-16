@@ -1901,8 +1901,12 @@ static void extrun_widget_update(const char *label, const char *search_text)
 		}
 	}
 	g_list_free(children);
-	if (search_text && strlen(search_text) > 0)
+	if (label && search_text && strlen(search_text) > 0)
 		wofi_property_box_add_property(WOFI_PROPERTY_BOX(extrun_widget_box), "filter", (char *)search_text);
+	else {
+		wofi_property_box_add_property(WOFI_PROPERTY_BOX(extrun_widget_box), "filter", NULL);
+
+	}
 }
 
 static void extrun_widget_on_changed(GtkEntry *entry, gpointer user_data)
